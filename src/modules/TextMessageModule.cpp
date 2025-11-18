@@ -7,6 +7,9 @@
 #include "graphics/Screen.h"
 TextMessageModule *textMessageModule;
 
+extern bool isLedOn;
+extern unsigned long ledOnTime;
+
 // Remove and leading or trailing white space
 static inline std::string trim_message(const std::string &s){
     size_t a = s.find_first_not_of(" \t\r\n");
@@ -71,6 +74,11 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
     // Keep a copy of the most recent text message.
     devicestate.rx_text_message = mp;
     devicestate.has_rx_text_message = true;
+
+    // Turn on GPIO Pin
+    digitalWrite(38, HIGH);
+    ledOnTime = millis();
+    isLedOn = true;
 
     // Only trigger screen wake if configuration allows it
     if (shouldWakeOnReceivedMessage()) {

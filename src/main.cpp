@@ -165,6 +165,10 @@ SPIClass SPI1(HSPI);
 
 using namespace concurrency;
 
+// LED Declares
+bool isLedOn;
+unsigned long ledOnTime;
+
 volatile static const char slipstreamTZString[] = {USERPREFS_TZ_STRING};
 
 // We always create a screen object, but we only init it if we find the hardware
@@ -298,6 +302,10 @@ void printInfo()
 #ifndef PIO_UNIT_TESTING
 void setup()
 {
+    // Initialize Zero pin to low
+    pinMode(38,OUTPUT);
+    digitalWrite(38, LOW);
+
 #if defined(R1_NEO)
     pinMode(DCDC_EN_HOLD, OUTPUT);
     digitalWrite(DCDC_EN_HOLD, HIGH);
@@ -1576,6 +1584,12 @@ void scannerToSensorsMap(const std::unique_ptr<ScanI2CTwoWire> &i2cScanner, Scan
 #ifndef PIO_UNIT_TESTING
 void loop()
 {
+
+    if (isLedOn && (millis() - ledOnTime >= 10000)){
+        digitalWrite(38, LOW);
+        isLedOn = false;
+    }
+
     runASAP = false;
 
 #ifdef ARCH_ESP32
