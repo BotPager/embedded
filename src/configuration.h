@@ -483,3 +483,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "DebugConfiguration.h"
 #include "RF95Configuration.h"
+
+// Custom Pager Stuff
+#define PAGER_ID 4321
+extern unsigned long ledOnTime;
+extern bool isLedOn;
