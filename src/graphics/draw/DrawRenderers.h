@@ -11,6 +11,7 @@
 #include "graphics/draw/CompassRenderer.h"
 #include "graphics/draw/DebugRenderer.h"
 #include "graphics/draw/NodeListRenderer.h"
+#include "graphics/draw/ScreenRenderer.h"
 #include "graphics/draw/UIRenderer.h"
 
 namespace graphics
@@ -29,6 +30,8 @@ using namespace ClockRenderer;
 using namespace CompassRenderer;
 using namespace DebugRenderer;
 using namespace NodeListRenderer;
+using namespace ScreenRenderer;
+using namespace UIRenderer;
 
 } // namespace DrawRenderers
 

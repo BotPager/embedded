@@ -100,5 +100,3 @@
 #define MODEM_DTR 8
 #define MODEM_RX 10
 #define MODEM_TX 11
-
-#define HAS_PHYSICAL_KEYBOARD 1

@@ -21,7 +21,7 @@ uint32_t ntp_renew = 0;
 #endif
 
 EthernetUDP syslogClient;
-meshtastic::Syslog syslog(syslogClient);
+Syslog syslog(syslogClient);
 
 bool ethStartupComplete = 0;
 

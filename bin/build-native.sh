@@ -17,19 +17,15 @@ VERSION=$(bin/buildinfo.py long)
 SHORT_VERSION=$(bin/buildinfo.py short)
 PIO_ENV=${1:-native}
 
-BUILDDIR=.pio/build/$PIO_ENV
-OUTDIR=release
+OUTDIR=release/
 
-rm -f $OUTDIR/meshtasticd*
+rm -f $OUTDIR/firmware*
 
 mkdir -p $OUTDIR/
 rm -r $OUTDIR/* || true
 
-basename=meshtasticd-$1-$VERSION
-
 # Important to pull latest version of libs into all device flavors, otherwise some devices might be stale
 pio pkg install --environment "$PIO_ENV" || platformioFailed
 pio run --environment "$PIO_ENV" || platformioFailed
-
-cp "$BUILDDIR/meshtasticd" "$OUTDIR/meshtasticd_linux_$(uname -m)"
-cp bin/native-install.* $OUTDIR/
+cp ".pio/build/$PIO_ENV/program" "$OUTDIR/meshtasticd_linux_$(uname -m)"
+cp bin/native-install.* $OUTDIR

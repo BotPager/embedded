@@ -8,18 +8,12 @@
 
 class RotaryEncoder;
 
-class RotaryEncoderImpl final : public InputPollable
+class RotaryEncoderImpl : public InputPollable
 {
   public:
     RotaryEncoderImpl();
-    ~RotaryEncoderImpl() override;
-    bool init();
+    bool init(void);
     virtual void pollOnce() override;
-    // Disconnect and reconnect interrupts for light sleep
-#ifdef ARCH_ESP32
-    int beforeLightSleep(void *unused);
-    int afterLightSleep(esp_sleep_wakeup_cause_t cause);
-#endif
 
   protected:
     static RotaryEncoderImpl *interruptInstance;
@@ -29,21 +23,6 @@ class RotaryEncoderImpl final : public InputPollable
     input_broker_event eventPressed = INPUT_BROKER_NONE;
 
     RotaryEncoder *rotary;
-
-  private:
-#ifdef ARCH_ESP32
-    bool isFirstInit;
-#endif
-    void detachRotaryEncoderInterrupts();
-    void attachRotaryEncoderInterrupts();
-
-#ifdef ARCH_ESP32
-    // Get notified when lightsleep begins and ends
-    CallbackObserver<RotaryEncoderImpl, void *> lsObserver =
-        CallbackObserver<RotaryEncoderImpl, void *>(this, &RotaryEncoderImpl::beforeLightSleep);
-    CallbackObserver<RotaryEncoderImpl, esp_sleep_wakeup_cause_t> lsEndObserver =
-        CallbackObserver<RotaryEncoderImpl, esp_sleep_wakeup_cause_t>(this, &RotaryEncoderImpl::afterLightSleep);
-#endif
 };
 
 extern RotaryEncoderImpl *rotaryEncoderImpl;

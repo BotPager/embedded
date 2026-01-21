@@ -1,7 +1,6 @@
 #ifdef MESHTASTIC_INCLUDE_INKHUD
 
 #include "./PositionsApplet.h"
-#include "NodeDB.h"
 
 using namespace NicheGraphics;
 
@@ -50,8 +49,8 @@ ProcessMessage InkHUD::PositionsApplet::handleReceived(const meshtastic_MeshPack
     if (!hasPosition)
         return ProcessMessage::CONTINUE;
 
-    const int8_t hopsAway = getHopsAway(mp);
-    const bool hasHopsAway = hopsAway >= 0;
+    bool hasHopsAway = (mp.hop_start != 0 && mp.hop_limit <= mp.hop_start); // From NodeDB::updateFrom
+    uint8_t hopsAway = mp.hop_start - mp.hop_limit;
 
     // Determine if the position packet would change anything on-screen
     // -----------------------------------------------------------------

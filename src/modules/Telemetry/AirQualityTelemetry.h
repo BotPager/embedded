@@ -1,23 +1,14 @@
 #include "configuration.h"
 
-#if !MESHTASTIC_EXCLUDE_AIR_QUALITY_SENSOR
+#if !MESHTASTIC_EXCLUDE_ENVIRONMENTAL_SENSOR && __has_include("Adafruit_PM25AQI.h")
 
 #pragma once
-
-#ifndef AIR_QUALITY_TELEMETRY_MODULE_ENABLE
-#define AIR_QUALITY_TELEMETRY_MODULE_ENABLE 0
-#endif
-
 #include "../mesh/generated/meshtastic/telemetry.pb.h"
+#include "Adafruit_PM25AQI.h"
 #include "NodeDB.h"
 #include "ProtobufModule.h"
-#include "detect/ScanI2CConsumer.h"
-#include <OLEDDisplay.h>
-#include <OLEDDisplayUi.h>
 
-class AirQualityTelemetryModule : private concurrency::OSThread,
-                                  public ScanI2CConsumer,
-                                  public ProtobufModule<meshtastic_Telemetry>
+class AirQualityTelemetryModule : private concurrency::OSThread, public ProtobufModule<meshtastic_Telemetry>
 {
     CallbackObserver<AirQualityTelemetryModule, const meshtastic::Status *> nodeStatusObserver =
         CallbackObserver<AirQualityTelemetryModule, const meshtastic::Status *>(this,
@@ -25,19 +16,22 @@ class AirQualityTelemetryModule : private concurrency::OSThread,
 
   public:
     AirQualityTelemetryModule()
-        : concurrency::OSThread("AirQualityTelemetry"), ScanI2CConsumer(),
+        : concurrency::OSThread("AirQualityTelemetry"),
           ProtobufModule("AirQualityTelemetry", meshtastic_PortNum_TELEMETRY_APP, &meshtastic_Telemetry_msg)
     {
         lastMeasurementPacket = nullptr;
-        nodeStatusObserver.observe(&nodeStatus->onNewStatus);
         setIntervalFromNow(10 * 1000);
-    }
-    virtual bool wantUIFrame() override;
-#if !HAS_SCREEN
-    void drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y);
+        aqi = Adafruit_PM25AQI();
+        nodeStatusObserver.observe(&nodeStatus->onNewStatus);
+
+#ifdef PMSA003I_ENABLE_PIN
+        // the PMSA003I sensor uses about 300mW on its own; support powering it off when it's not actively taking
+        // a reading
+        state = State::IDLE;
 #else
-    virtual void drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) override;
+        state = State::ACTIVE;
 #endif
+    }
 
   protected:
     /** Called to handle a particular incoming message
@@ -55,17 +49,19 @@ class AirQualityTelemetryModule : private concurrency::OSThread,
      */
     bool sendTelemetry(NodeNum dest = NODENUM_BROADCAST, bool wantReplies = false);
 
-    virtual AdminMessageHandleResult handleAdminMessageForModule(const meshtastic_MeshPacket &mp,
-                                                                 meshtastic_AdminMessage *request,
-                                                                 meshtastic_AdminMessage *response) override;
-    void i2cScanFinished(ScanI2C *i2cScanner);
-
   private:
+    enum State {
+        IDLE = 0,
+        ACTIVE = 1,
+    };
+
+    State state;
+    Adafruit_PM25AQI aqi;
+    PM25_AQI_Data data = {0};
     bool firstTime = true;
     meshtastic_MeshPacket *lastMeasurementPacket;
     uint32_t sendToPhoneIntervalMs = SECONDS_IN_MINUTE * 1000; // Send to phone every minute
     uint32_t lastSentToMesh = 0;
-    uint32_t lastSentToPhone = 0;
 };
 
 #endif

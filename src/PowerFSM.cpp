@@ -57,21 +57,21 @@ static bool isPowered()
 
 static void sdsEnter()
 {
-    LOG_POWERFSM("State: SDS");
+    LOG_DEBUG("State: SDS");
     // FIXME - make sure GPS and LORA radio are off first - because we want close to zero current draw
     doDeepSleep(Default::getConfiguredOrDefaultMs(config.power.sds_secs), false, false);
 }
 
 static void lowBattSDSEnter()
 {
-    LOG_POWERFSM("State: Lower batt SDS");
+    LOG_DEBUG("State: Lower batt SDS");
     doDeepSleep(Default::getConfiguredOrDefaultMs(config.power.sds_secs), false, true);
 }
 extern Power *power;
 
 static void shutdownEnter()
 {
-    LOG_POWERFSM("State: SHUTDOWN");
+    LOG_DEBUG("State: SHUTDOWN");
     shutdownAtMsec = millis();
 }
 
@@ -81,7 +81,7 @@ static uint32_t secsSlept;
 
 static void lsEnter()
 {
-    LOG_POWERFSM("lsEnter begin, ls_secs=%u", config.power.ls_secs);
+    LOG_INFO("lsEnter begin, ls_secs=%u", config.power.ls_secs);
     if (screen)
         screen->setOn(false);
     secsSlept = 0; // How long have we been sleeping this time
@@ -155,12 +155,12 @@ static void lsIdle()
 
 static void lsExit()
 {
-    LOG_POWERFSM("State: lsExit");
+    LOG_INFO("Exit state: LS");
 }
 
 static void nbEnter()
 {
-    LOG_POWERFSM("State: nbEnter");
+    LOG_DEBUG("State: NB");
     if (screen)
         screen->setOn(false);
 #ifdef ARCH_ESP32
@@ -173,7 +173,6 @@ static void nbEnter()
 
 static void darkEnter()
 {
-    LOG_POWERFSM("State: darkEnter");
     setBluetoothEnable(true);
     if (screen)
         screen->setOn(false);
@@ -181,7 +180,7 @@ static void darkEnter()
 
 static void serialEnter()
 {
-    LOG_POWERFSM("State: serialEnter");
+    LOG_DEBUG("State: SERIAL");
     setBluetoothEnable(false);
     if (screen) {
         screen->setOn(true);
@@ -190,14 +189,13 @@ static void serialEnter()
 
 static void serialExit()
 {
-    LOG_POWERFSM("State: serialExit");
     // Turn bluetooth back on when we leave serial stream API
     setBluetoothEnable(true);
 }
 
 static void powerEnter()
 {
-    LOG_POWERFSM("State: powerEnter");
+    // LOG_DEBUG("State: POWER");
     if (!isPowered()) {
         // If we got here, we are in the wrong state - we should be in powered, let that state handle things
         LOG_INFO("Loss of power in Powered");
@@ -212,7 +210,6 @@ static void powerEnter()
 
 static void powerIdle()
 {
-    // LOG_POWERFSM("State: powerIdle"); // very chatty
     if (!isPowered()) {
         // If we got here, we are in the wrong state
         LOG_INFO("Loss of power in Powered");
@@ -222,13 +219,14 @@ static void powerIdle()
 
 static void powerExit()
 {
-    LOG_POWERFSM("State: powerExit");
+    if (screen)
+        screen->setOn(true);
     setBluetoothEnable(true);
 }
 
 static void onEnter()
 {
-    LOG_POWERFSM("State: onEnter");
+    LOG_DEBUG("State: ON");
     if (screen)
         screen->setOn(true);
     setBluetoothEnable(true);
@@ -236,7 +234,6 @@ static void onEnter()
 
 static void onIdle()
 {
-    LOG_POWERFSM("State: onIdle");
     if (isPowered()) {
         // If we got here, we are in the wrong state - we should be in powered, let that state handle things
         powerFSM.trigger(EVENT_POWER_CONNECTED);
@@ -245,7 +242,7 @@ static void onIdle()
 
 static void bootEnter()
 {
-    LOG_POWERFSM("State: bootEnter");
+    LOG_DEBUG("State: BOOT");
 }
 
 State stateSHUTDOWN(shutdownEnter, NULL, NULL, "SHUTDOWN");
@@ -322,6 +319,11 @@ void PowerFSM_setup()
         // if any packet destined for phone arrives, turn on bluetooth at least
         powerFSM.add_transition(&stateNB, &stateDARK, EVENT_PACKET_FOR_PHONE, NULL, "Packet for phone");
 
+        // Removed 2.7: we don't show the nodes individually for every node on the screen anymore
+        // powerFSM.add_transition(&stateNB, &stateON, EVENT_NODEDB_UPDATED, NULL, "NodeDB update");
+        // powerFSM.add_transition(&stateDARK, &stateON, EVENT_NODEDB_UPDATED, NULL, "NodeDB update");
+        // powerFSM.add_transition(&stateON, &stateON, EVENT_NODEDB_UPDATED, NULL, "NodeDB update");
+
         // Show the received text message
         powerFSM.add_transition(&stateLS, &stateON, EVENT_RECEIVED_MSG, NULL, "Received text");
         powerFSM.add_transition(&stateNB, &stateON, EVENT_RECEIVED_MSG, NULL, "Received text");
@@ -370,7 +372,7 @@ void PowerFSM_setup()
     // Don't add power saving transitions if we are a power saving tracker or sensor or have Wifi enabled. Sleep will be initiated
     // through the modules
 
-#if HAS_WIFI && !defined(MESHTASTIC_EXCLUDE_WIFI)
+#if HAS_WIFI || !defined(MESHTASTIC_EXCLUDE_WIFI)
     bool isTrackerOrSensor = config.device.role == meshtastic_Config_DeviceConfig_Role_TRACKER ||
                              config.device.role == meshtastic_Config_DeviceConfig_Role_TAK_TRACKER ||
                              config.device.role == meshtastic_Config_DeviceConfig_Role_SENSOR;

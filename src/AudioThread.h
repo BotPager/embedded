@@ -50,11 +50,8 @@ class AudioThread : public concurrency::OSThread
             delete i2sRtttl;
             i2sRtttl = nullptr;
         }
-
-        if (rtttlFile != nullptr) {
-            delete rtttlFile;
-            rtttlFile = nullptr;
-        }
+        delete rtttlFile;
+        rtttlFile = nullptr;
 
         setCPUFast(false);
 #ifdef T_LORA_PAGER
@@ -102,9 +99,9 @@ class AudioThread : public concurrency::OSThread
     };
 
     AudioGeneratorRTTTL *i2sRtttl = nullptr;
-    AudioOutputI2S *audioOut = nullptr;
+    AudioOutputI2S *audioOut;
 
-    AudioFileSourcePROGMEM *rtttlFile = nullptr;
+    AudioFileSourcePROGMEM *rtttlFile;
 };
 
 #endif

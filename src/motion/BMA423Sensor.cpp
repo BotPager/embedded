@@ -2,14 +2,16 @@
 
 #if !defined(ARCH_STM32WL) && !MESHTASTIC_EXCLUDE_I2C && defined(HAS_BMA423) && __has_include(<SensorBMA423.hpp>)
 
+using namespace MotionSensorI2C;
+
 BMA423Sensor::BMA423Sensor(ScanI2C::FoundDevice foundDevice) : MotionSensor::MotionSensor(foundDevice) {}
 
 bool BMA423Sensor::init()
 {
-    if (sensor.begin(Wire, deviceAddress())) {
+    if (sensor.begin(deviceAddress(), &MotionSensorI2C::readRegister, &MotionSensorI2C::writeRegister)) {
         sensor.configAccelerometer(sensor.RANGE_2G, sensor.ODR_100HZ, sensor.BW_NORMAL_AVG4, sensor.PERF_CONTINUOUS_MODE);
         sensor.enableAccelerometer();
-        sensor.configInterrupt();
+        sensor.configInterrupt(BMA4_LEVEL_TRIGGER, BMA4_ACTIVE_HIGH, BMA4_PUSH_PULL, BMA4_OUTPUT_ENABLE, BMA4_INPUT_DISABLE);
 
 #ifdef BMA423_INT
         pinMode(BMA4XX_INT, INPUT);
@@ -24,9 +26,9 @@ bool BMA423Sensor::init()
 
 #ifdef T_WATCH_S3
         // Need to raise the wrist function, need to set the correct axis
-        sensor.setRemapAxes(sensor.REMAP_TOP_LAYER_RIGHT_CORNER);
+        sensor.setReampAxes(sensor.REMAP_TOP_LAYER_RIGHT_CORNER);
 #else
-        sensor.setRemapAxes(sensor.REMAP_BOTTOM_LAYER_BOTTOM_LEFT_CORNER);
+        sensor.setReampAxes(sensor.REMAP_BOTTOM_LAYER_BOTTOM_LEFT_CORNER);
 #endif
         // sensor.enableFeature(sensor.FEATURE_STEP_CNTR, true);
         sensor.enableFeature(sensor.FEATURE_TILT, true);
@@ -48,7 +50,7 @@ bool BMA423Sensor::init()
 
 int32_t BMA423Sensor::runOnce()
 {
-    if (sensor.readIrqStatus()) {
+    if (sensor.readIrqStatus() != DEV_WIRE_NONE) {
         if (sensor.isTilt() || sensor.isDoubleTap()) {
             wakeScreen();
             return 500;

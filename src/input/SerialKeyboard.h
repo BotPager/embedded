@@ -8,8 +8,6 @@ class SerialKeyboard : public Observable<const InputEvent *>, public concurrency
   public:
     explicit SerialKeyboard(const char *name);
 
-    uint8_t getShift() const { return shift; }
-
   protected:
     virtual int32_t runOnce() override;
     void erase();
@@ -25,5 +23,3 @@ class SerialKeyboard : public Observable<const InputEvent *>, public concurrency
     int quickPress = 0;
     unsigned long lastPressTime = 0;
 };
-
-extern SerialKeyboard *globalSerialKeyboard;

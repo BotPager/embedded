@@ -7,8 +7,6 @@
 #include "TDeckProKeyboard.h"
 #elif defined(T_LORA_PAGER)
 #include "TLoraPagerKeyboard.h"
-#elif defined(HACKADAY_COMMUNICATOR)
-#include "HackadayCommunicatorKeyboard.h"
 #else
 #include "TCA8418Keyboard.h"
 #endif
@@ -22,8 +20,6 @@ KbI2cBase::KbI2cBase(const char *name)
       TCAKeyboard(*(new TDeckProKeyboard()))
 #elif defined(T_LORA_PAGER)
       TCAKeyboard(*(new TLoraPagerKeyboard()))
-#elif defined(HACKADAY_COMMUNICATOR)
-      TCAKeyboard(*(new HackadayCommunicatorKeyboard()))
 #else
       TCAKeyboard(*(new TCA8418Keyboard()))
 #endif
@@ -332,7 +328,7 @@ int32_t KbI2cBase::runOnce()
                 break;
             }
             if (e.inputEvent != INPUT_BROKER_NONE) {
-                // LOG_DEBUG("TCA8418 Notifying: %i Char: %c", e.inputEvent, e.kbchar);
+                LOG_DEBUG("TCA8418 Notifying: %i Char: %c", e.inputEvent, e.kbchar);
                 this->notifyObservers(&e);
             }
             TCAKeyboard.trigger();
@@ -489,6 +485,8 @@ int32_t KbI2cBase::runOnce()
             case 0x90: // fn+r      INPUT_BROKER_MSG_REBOOT
             case 0x91: // fn+t
             case 0xac: // fn+m      INPUT_BROKER_MSG_MUTE_TOGGLE
+
+            case 0x8b: // fn+del    INPUT_BROKEN_MSG_DISMISS_FRAME
             case 0xAA: // fn+b      INPUT_BROKER_MSG_BLUETOOTH_TOGGLE
             case 0x8F: // fn+e      INPUT_BROKER_MSG_EMOTE_LIST
                 // just pass those unmodified

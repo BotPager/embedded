@@ -1,6 +1,5 @@
 #include "TraceRouteModule.h"
 #include "MeshService.h"
-#include "NodeDB.h"
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
 #include "graphics/SharedUIDisplay.h"
@@ -11,113 +10,6 @@
 extern graphics::Screen *screen;
 
 TraceRouteModule *traceRouteModule;
-
-void TraceRouteModule::setResultText(const String &text)
-{
-    resultText = text;
-    resultLines.clear();
-    resultLinesDirty = true;
-}
-
-void TraceRouteModule::clearResultLines()
-{
-    resultLines.clear();
-    resultLinesDirty = false;
-}
-#if HAS_SCREEN
-void TraceRouteModule::rebuildResultLines(OLEDDisplay *display)
-{
-    if (!display) {
-        resultLinesDirty = false;
-        return;
-    }
-
-    resultLines.clear();
-
-    if (resultText.length() == 0) {
-        resultLinesDirty = false;
-        return;
-    }
-
-    int maxWidth = display->getWidth() - 4;
-    if (maxWidth <= 0) {
-        resultLinesDirty = false;
-        return;
-    }
-
-    int start = 0;
-    int textLength = resultText.length();
-
-    while (start <= textLength) {
-        int newlinePos = resultText.indexOf('\n', start);
-        String segment;
-
-        if (newlinePos != -1) {
-            segment = resultText.substring(start, newlinePos);
-            start = newlinePos + 1;
-        } else {
-            segment = resultText.substring(start);
-            start = textLength + 1;
-        }
-
-        if (segment.length() == 0) {
-            resultLines.push_back("");
-            continue;
-        }
-
-        if (display->getStringWidth(segment) <= maxWidth) {
-            resultLines.push_back(segment);
-            continue;
-        }
-
-        String remaining = segment;
-
-        while (remaining.length() > 0) {
-            String tempLine = "";
-            int lastGoodBreak = -1;
-            bool lineComplete = false;
-
-            for (int i = 0; i < static_cast<int>(remaining.length()); i++) {
-                char ch = remaining.charAt(i);
-                String testLine = tempLine + ch;
-
-                if (display->getStringWidth(testLine) > maxWidth) {
-                    if (lastGoodBreak >= 0) {
-                        resultLines.push_back(remaining.substring(0, lastGoodBreak + 1));
-                        remaining = remaining.substring(lastGoodBreak + 1);
-                        lineComplete = true;
-                        break;
-                    } else if (tempLine.length() > 0) {
-                        resultLines.push_back(tempLine);
-                        remaining = remaining.substring(i);
-                        lineComplete = true;
-                        break;
-                    } else {
-                        resultLines.push_back(String(ch));
-                        remaining = remaining.substring(i + 1);
-                        lineComplete = true;
-                        break;
-                    }
-                } else {
-                    tempLine = testLine;
-                    if (ch == ' ' || ch == '>' || ch == '<' || ch == '-' || ch == '(' || ch == ')' || ch == ',') {
-                        lastGoodBreak = i;
-                    }
-                }
-            }
-
-            if (!lineComplete) {
-                if (tempLine.length() > 0) {
-                    resultLines.push_back(tempLine);
-                }
-                break;
-            }
-        }
-    }
-
-    resultLinesDirty = false;
-}
-#endif
 
 bool TraceRouteModule::handleReceivedProtobuf(const meshtastic_MeshPacket &mp, meshtastic_RouteDiscovery *r)
 {
@@ -360,10 +252,10 @@ void TraceRouteModule::insertUnknownHops(meshtastic_MeshPacket &p, meshtastic_Ro
     }
 
     // Only insert unknown hops if hop_start is valid
-    const int8_t hopsTaken = getHopsAway(p);
-    if (hopsTaken >= 0) {
+    if (p.hop_start != 0 && p.hop_limit <= p.hop_start) {
+        uint8_t hopsTaken = p.hop_start - p.hop_limit;
         int8_t diff = hopsTaken - *route_count;
-        for (int8_t i = 0; i < diff; i++) {
+        for (uint8_t i = 0; i < diff; i++) {
             if (*route_count < ROUTE_SIZE) {
                 route[*route_count] = NODENUM_BROADCAST; // This will represent an unknown hop
                 *route_count += 1;
@@ -371,7 +263,7 @@ void TraceRouteModule::insertUnknownHops(meshtastic_MeshPacket &p, meshtastic_Ro
         }
         // Add unknown SNR values if necessary
         diff = *route_count - *snr_count;
-        for (int8_t i = 0; i < diff; i++) {
+        for (uint8_t i = 0; i < diff; i++) {
             if (*snr_count < ROUTE_SIZE) {
                 snr_list[*snr_count] = INT8_MIN; // This will represent an unknown SNR
                 *snr_count += 1;
@@ -514,7 +406,7 @@ bool TraceRouteModule::startTraceRoute(NodeNum node)
     if (node == 0 || node == NODENUM_BROADCAST) {
         LOG_ERROR("Invalid node number for trace route: 0x%08x", node);
         runState = TRACEROUTE_STATE_RESULT;
-        setResultText("Invalid node");
+        resultText = "Invalid node";
         resultShowTime = millis();
         tracingNode = 0;
 
@@ -528,7 +420,7 @@ bool TraceRouteModule::startTraceRoute(NodeNum node)
     if (node == nodeDB->getNodeNum()) {
         LOG_ERROR("Cannot trace route to self: 0x%08x", node);
         runState = TRACEROUTE_STATE_RESULT;
-        setResultText("Cannot trace self");
+        resultText = "Cannot trace self";
         resultShowTime = millis();
         tracingNode = 0;
 
@@ -555,8 +447,6 @@ bool TraceRouteModule::startTraceRoute(NodeNum node)
         unsigned long wait = (cooldownMs - (now - lastTraceRouteTime)) / 1000;
         bannerText = String("Wait for ") + String(wait) + String("s");
         runState = TRACEROUTE_STATE_COOLDOWN;
-        resultText = "";
-        clearResultLines();
 
         requestFocus();
         UIFrameEvent e;
@@ -569,8 +459,6 @@ bool TraceRouteModule::startTraceRoute(NodeNum node)
     tracingNode = node;
     lastTraceRouteTime = now;
     runState = TRACEROUTE_STATE_TRACKING;
-    resultText = "";
-    clearResultLines();
     bannerText = String("Tracing ") + getNodeName(node);
 
     LOG_INFO("TraceRoute UI: Starting trace route to node 0x%08x, requesting focus", node);
@@ -613,7 +501,7 @@ bool TraceRouteModule::startTraceRoute(NodeNum node)
         } else {
             LOG_ERROR("MeshService is NULL!");
             runState = TRACEROUTE_STATE_RESULT;
-            setResultText("Service unavailable");
+            resultText = "Service unavailable";
             resultShowTime = millis();
             tracingNode = 0;
 
@@ -626,7 +514,7 @@ bool TraceRouteModule::startTraceRoute(NodeNum node)
     } else {
         LOG_ERROR("Failed to allocate TraceRoute packet from router");
         runState = TRACEROUTE_STATE_RESULT;
-        setResultText("Failed to send");
+        resultText = "Failed to send";
         resultShowTime = millis();
         tracingNode = 0;
 
@@ -644,7 +532,7 @@ void TraceRouteModule::launch(NodeNum node)
     if (node == 0 || node == NODENUM_BROADCAST) {
         LOG_ERROR("Invalid node number for trace route: 0x%08x", node);
         runState = TRACEROUTE_STATE_RESULT;
-        setResultText("Invalid node");
+        resultText = "Invalid node";
         resultShowTime = millis();
         tracingNode = 0;
 
@@ -658,7 +546,7 @@ void TraceRouteModule::launch(NodeNum node)
     if (node == nodeDB->getNodeNum()) {
         LOG_ERROR("Cannot trace route to self: 0x%08x", node);
         runState = TRACEROUTE_STATE_RESULT;
-        setResultText("Cannot trace self");
+        resultText = "Cannot trace self";
         resultShowTime = millis();
         tracingNode = 0;
 
@@ -680,8 +568,6 @@ void TraceRouteModule::launch(NodeNum node)
         unsigned long wait = (cooldownMs - (now - lastTraceRouteTime)) / 1000;
         bannerText = String("Wait for ") + String(wait) + String("s");
         runState = TRACEROUTE_STATE_COOLDOWN;
-        resultText = "";
-        clearResultLines();
 
         requestFocus();
         UIFrameEvent e;
@@ -694,8 +580,6 @@ void TraceRouteModule::launch(NodeNum node)
     runState = TRACEROUTE_STATE_TRACKING;
     tracingNode = node;
     lastTraceRouteTime = now;
-    resultText = "";
-    clearResultLines();
     bannerText = String("Tracing ") + getNodeName(node);
 
     requestFocus();
@@ -730,14 +614,14 @@ void TraceRouteModule::launch(NodeNum node)
         } else {
             LOG_ERROR("MeshService is NULL!");
             runState = TRACEROUTE_STATE_RESULT;
-            setResultText("Service unavailable");
+            resultText = "Service unavailable";
             resultShowTime = millis();
             tracingNode = 0;
         }
     } else {
         LOG_ERROR("Failed to allocate TraceRoute packet from router");
         runState = TRACEROUTE_STATE_RESULT;
-        setResultText("Failed to send");
+        resultText = "Failed to send";
         resultShowTime = millis();
         tracingNode = 0;
     }
@@ -745,7 +629,7 @@ void TraceRouteModule::launch(NodeNum node)
 
 void TraceRouteModule::handleTraceRouteResult(const String &result)
 {
-    setResultText(result);
+    resultText = result;
     runState = TRACEROUTE_STATE_RESULT;
     resultShowTime = millis();
     tracingNode = 0;
@@ -795,15 +679,83 @@ void TraceRouteModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state
         display->setFont(FONT_SMALL);
 
         if (resultText.length() > 0) {
-            if (resultLinesDirty) {
-                rebuildResultLines(display);
+            std::vector<String> lines;
+            String currentLine = "";
+            int maxWidth = display->getWidth() - 4;
+
+            int start = 0;
+            int newlinePos = resultText.indexOf('\n', start);
+
+            while (newlinePos != -1 || start < static_cast<int>(resultText.length())) {
+                String segment;
+                if (newlinePos != -1) {
+                    segment = resultText.substring(start, newlinePos);
+                    start = newlinePos + 1;
+                    newlinePos = resultText.indexOf('\n', start);
+                } else {
+                    segment = resultText.substring(start);
+                    start = resultText.length();
+                }
+
+                if (display->getStringWidth(segment) <= maxWidth) {
+                    lines.push_back(segment);
+                } else {
+                    // Try to break at better positions (space, >, <, -)
+                    String remaining = segment;
+
+                    while (remaining.length() > 0) {
+                        String tempLine = "";
+                        int lastGoodBreak = -1;
+                        bool lineComplete = false;
+
+                        for (int i = 0; i < static_cast<int>(remaining.length()); i++) {
+                            char ch = remaining.charAt(i);
+                            String testLine = tempLine + ch;
+
+                            if (display->getStringWidth(testLine) > maxWidth) {
+                                if (lastGoodBreak >= 0) {
+                                    // Break at the last good position
+                                    lines.push_back(remaining.substring(0, lastGoodBreak + 1));
+                                    remaining = remaining.substring(lastGoodBreak + 1);
+                                    lineComplete = true;
+                                    break;
+                                } else if (tempLine.length() > 0) {
+                                    lines.push_back(tempLine);
+                                    remaining = remaining.substring(i);
+                                    lineComplete = true;
+                                    break;
+                                } else {
+                                    // Single character exceeds width
+                                    lines.push_back(String(ch));
+                                    remaining = remaining.substring(i + 1);
+                                    lineComplete = true;
+                                    break;
+                                }
+                            } else {
+                                tempLine = testLine;
+                                // Mark good break positions
+                                if (ch == ' ' || ch == '>' || ch == '<' || ch == '-' || ch == '(' || ch == ')') {
+                                    lastGoodBreak = i;
+                                }
+                            }
+                        }
+
+                        if (!lineComplete) {
+                            // Reached end of remaining text
+                            if (tempLine.length() > 0) {
+                                lines.push_back(tempLine);
+                            }
+                            break;
+                        }
+                    }
+                }
             }
 
             int lineHeight = FONT_HEIGHT_SMALL + 1; // Use proper font height with 1px spacing
-            for (size_t i = 0; i < resultLines.size(); i++) {
+            for (size_t i = 0; i < lines.size(); i++) {
                 int lineY = contentStartY + (i * lineHeight);
                 if (lineY + FONT_HEIGHT_SMALL <= display->getHeight()) {
-                    display->drawString(x + 2, lineY, resultLines[i]);
+                    display->drawString(x + 2, lineY, lines[i]);
                 }
             }
         }
@@ -827,7 +779,7 @@ int32_t TraceRouteModule::runOnce()
     if (runState == TRACEROUTE_STATE_TRACKING && now - lastTraceRouteTime > trackingTimeoutMs) {
         LOG_INFO("TraceRoute timeout, no response received");
         runState = TRACEROUTE_STATE_RESULT;
-        setResultText("No response received");
+        resultText = "No response received";
         resultShowTime = now;
         tracingNode = 0;
 
@@ -863,8 +815,6 @@ int32_t TraceRouteModule::runOnce()
             // Cooldown finished
             LOG_INFO("TraceRoute cooldown finished, returning to IDLE");
             runState = TRACEROUTE_STATE_IDLE;
-            resultText = "";
-            clearResultLines();
             bannerText = "";
             UIFrameEvent e;
             e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
@@ -878,7 +828,6 @@ int32_t TraceRouteModule::runOnce()
             LOG_INFO("TraceRoute result display timeout, returning to IDLE");
             runState = TRACEROUTE_STATE_IDLE;
             resultText = "";
-            clearResultLines();
             bannerText = "";
             tracingNode = 0;
             UIFrameEvent e;

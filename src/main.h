@@ -42,7 +42,7 @@ extern bool eink_found;
 extern bool pmu_found;
 extern bool isUSBPowered;
 
-#ifdef HAS_DRV2605
+#if defined(T_WATCH_S3) || defined(T_LORA_PAGER)
 #include <Adafruit_DRV2605.h>
 extern Adafruit_DRV2605 drv;
 #endif
@@ -81,7 +81,6 @@ extern uint32_t timeLastPowered;
 
 extern uint32_t rebootAtMsec;
 extern uint32_t shutdownAtMsec;
-extern bool suppressRebootBanner;
 
 extern uint32_t serialSinceMsec;
 

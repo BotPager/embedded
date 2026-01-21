@@ -38,9 +38,6 @@
 #include "target_specific.h"
 #include <memory>
 #include <utility>
-#if HAS_SCREEN
-#include "MessageStore.h"
-#endif
 
 #ifdef ELECROW_ThinkNode_M5
 PCA9557 io(0x18, &Wire);
@@ -105,52 +102,11 @@ NRF52Bluetooth *nrf52Bluetooth = nullptr;
 #include <string>
 #endif
 
-#ifdef ARCH_ESP32
-#ifdef DEBUG_PARTITION_TABLE
-#include "esp_partition.h"
-
-void printPartitionTable()
-{
-    printf("\n--- Partition Table ---\n");
-    // Print Column Headers
-    printf("| %-16s | %-4s | %-7s | %-10s | %-10s |\n", "Label", "Type", "Subtype", "Offset", "Size");
-    printf("|------------------|------|---------|------------|------------|\n");
-
-    // Create an iterator to find ALL partitions (Type ANY, Subtype ANY)
-    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
-
-    // Loop through the iterator
-    if (it != NULL) {
-        do {
-            const esp_partition_t *part = esp_partition_get(it);
-
-            // Print details: Label, Type (Hex), Subtype (Hex), Offset (Hex), Size (Hex)
-            printf("| %-16s | 0x%02x | 0x%02x    | 0x%08x | 0x%08x |\n", part->label, part->type, part->subtype, part->address,
-                   part->size);
-
-            // Move to next partition
-            it = esp_partition_next(it);
-        } while (it != NULL);
-
-        // Release the iterator memory
-        esp_partition_iterator_release(it);
-    } else {
-        printf("No partitions found.\n");
-    }
-    printf("-----------------------\n");
-}
-#endif // DEBUG_PARTITION_TABLE
-#endif // ARCH_ESP32
-
 #if HAS_BUTTON || defined(ARCH_PORTDUINO)
 #include "input/ButtonThread.h"
 
 #if defined(BUTTON_PIN_TOUCH)
 ButtonThread *TouchButtonThread = nullptr;
-#if defined(TTGO_T_ECHO_PLUS) && defined(PIN_EINK_EN)
-static bool touchBacklightWasOn = false;
-static bool touchBacklightActive = false;
-#endif
 #endif
 
 #if defined(BUTTON_PIN) || defined(ARCH_PORTDUINO)
@@ -208,6 +164,11 @@ SPIClass SPI1(HSPI);
 #endif
 
 using namespace concurrency;
+// LED Declares
+bool isLedOn;
+unsigned long ledOnTime;
+
+
 
 volatile static const char slipstreamTZString[] = {USERPREFS_TZ_STRING};
 
@@ -249,7 +210,7 @@ ScanI2C::FoundDevice rgb_found = ScanI2C::FoundDevice(ScanI2C::DeviceType::NONE,
 /// The I2C address of our Air Quality Indicator (if found)
 ScanI2C::DeviceAddress aqi_found = ScanI2C::ADDRESS_NONE;
 
-#ifdef HAS_DRV2605
+#if defined(T_WATCH_S3) || defined(T_LORA_PAGER)
 Adafruit_DRV2605 drv;
 #endif
 
@@ -342,6 +303,9 @@ void printInfo()
 #ifndef PIO_UNIT_TESTING
 void setup()
 {
+// Initialize Zero pin to low
+    pinMode(38,OUTPUT);
+    digitalWrite(38, LOW);
 #if defined(R1_NEO)
     pinMode(DCDC_EN_HOLD, OUTPUT);
     digitalWrite(DCDC_EN_HOLD, HIGH);
@@ -438,10 +402,7 @@ void setup()
     io.pinMode(EXPANDS_GPIO_EN, OUTPUT);
     io.digitalWrite(EXPANDS_GPIO_EN, HIGH);
     io.pinMode(EXPANDS_SD_PULLEN, INPUT);
-#elif defined(HACKADAY_COMMUNICATOR)
-    pinMode(KB_INT, INPUT);
 #endif
-
     concurrency::hasBeenSetup = true;
 #if ARCH_PORTDUINO
     SPISettings spiSettings(portduino_config.spiSpeed, MSBFIRST, SPI_MODE0);
@@ -472,30 +433,16 @@ void setup()
 #endif
 
 #if ARCH_PORTDUINO
-    RTCQuality ourQuality = RTCQualityDevice;
-
-    std::string timeCommandResult = exec("timedatectl status | grep synchronized | grep yes -c");
-    if (timeCommandResult[0] == '1') {
-        ourQuality = RTCQualityNTP;
-    }
-
     struct timeval tv;
     tv.tv_sec = time(NULL);
     tv.tv_usec = 0;
-    perhapsSetRTC(ourQuality, &tv);
+    perhapsSetRTC(RTCQualityDevice, &tv);
 #endif
 
     powerMonInit();
     serialSinceMsec = millis();
 
     LOG_INFO("\n\n//\\ E S H T /\\ S T / C\n");
-
-#if defined(ARCH_ESP32) && defined(BOARD_HAS_PSRAM)
-#ifndef SENSECAP_INDICATOR
-    // use PSRAM for malloc calls > 256 bytes
-    heap_caps_malloc_extmem_enable(256);
-#endif
-#endif
 
 #if defined(DEBUG_MUTE) && defined(DEBUG_PORT)
     DEBUG_PORT.printf("\r\n\r\n//\\ E S H T /\\ S T / C\r\n");
@@ -537,10 +484,6 @@ void setup()
 
 #ifdef RESET_OLED
     pinMode(RESET_OLED, OUTPUT);
-    digitalWrite(RESET_OLED, 1);
-    delay(2);
-    digitalWrite(RESET_OLED, 0);
-    delay(10);
     digitalWrite(RESET_OLED, 1);
 #endif
 
@@ -611,7 +554,6 @@ void setup()
     Wire.setSCL(I2C_SCL);
     Wire.begin();
 #elif defined(I2C_SDA) && !defined(ARCH_RP2040)
-    LOG_INFO("Starting Bus with (SDA) %d and (SCL) %d: ", I2C_SDA, I2C_SCL);
     Wire.begin(I2C_SDA, I2C_SCL);
 #elif defined(ARCH_PORTDUINO)
     if (portduino_config.i2cdev != "") {
@@ -685,11 +627,7 @@ void setup()
         sensor_detected = true;
 #endif
     }
-#ifdef ARCH_ESP32
-#ifdef DEBUG_PARTITION_TABLE
-    printPartitionTable();
-#endif
-#endif // ARCH_ESP32
+
 #ifdef ARCH_ESP32
     // Don't init display if we don't have one or we are waking headless due to a timer event
     if (wakeCause == ESP_SLEEP_WAKEUP_TIMER) {
@@ -800,12 +738,11 @@ void setup()
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::INA219, meshtastic_TelemetrySensorType_INA219);
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::INA3221, meshtastic_TelemetrySensorType_INA3221);
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::MAX17048, meshtastic_TelemetrySensorType_MAX17048);
-    scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::QMC6310U, meshtastic_TelemetrySensorType_QMC6310);
-    // TODO: Types need to be added meshtastic_TelemetrySensorType_QMC6310N
-    //  scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::QMC6310N, meshtastic_TelemetrySensorType_QMC6310N);
+    scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::QMC6310, meshtastic_TelemetrySensorType_QMC6310);
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::QMI8658, meshtastic_TelemetrySensorType_QMI8658);
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::QMC5883L, meshtastic_TelemetrySensorType_QMC5883L);
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::HMC5883L, meshtastic_TelemetrySensorType_QMC5883L);
+    scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::PMSA0031, meshtastic_TelemetrySensorType_PMSA003I);
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::MLX90614, meshtastic_TelemetrySensorType_MLX90614);
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::ICM20948, meshtastic_TelemetrySensorType_ICM20948);
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::MAX30102, meshtastic_TelemetrySensorType_MAX30102);
@@ -845,6 +782,7 @@ void setup()
     // We do this as early as possible because this loads preferences from flash
     // but we need to do this after main cpu init (esp32setup), because we need the random seed set
     nodeDB = new NodeDB;
+
 #if HAS_TFT
     if (config.display.displaymode == meshtastic_Config_DisplayConfig_DisplayMode_COLOR) {
         tftSetup();
@@ -890,12 +828,7 @@ void setup()
 #endif
 #endif
 
-#ifdef HAS_DRV2605
-#if defined(PIN_DRV_EN)
-    pinMode(PIN_DRV_EN, OUTPUT);
-    digitalWrite(PIN_DRV_EN, HIGH);
-    delay(10);
-#endif
+#if defined(T_WATCH_S3) || defined(T_LORA_PAGER)
     drv.begin();
     drv.selectLibrary(1);
     // I2C trigger by sending 'go' command
@@ -931,7 +864,7 @@ void setup()
     SPI.begin();
 #endif
 #else
-// ESP32
+        // ESP32
 #if defined(HW_SPI1_DEVICE)
     SPI1.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
     LOG_DEBUG("SPI1.begin(SCK=%d, MISO=%d, MOSI=%d, NSS=%d)", LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
@@ -949,7 +882,7 @@ void setup()
 
 #if defined(ST7701_CS) || defined(ST7735_CS) || defined(USE_EINK) || defined(ILI9341_DRIVER) || defined(ILI9342_DRIVER) ||       \
     defined(ST7789_CS) || defined(HX8357_CS) || defined(USE_ST7789) || defined(ILI9488_CS) || defined(ST7796_CS) ||              \
-    defined(USE_SPISSD1306) || defined(USE_ST7796) || defined(HACKADAY_COMMUNICATOR)
+    defined(USE_SPISSD1306)
         screen = new graphics::Screen(screen_found, screen_model, screen_geometry);
 #elif defined(ARCH_PORTDUINO)
         if ((screen_found.port != ScanI2C::I2CPort::NO_I2C || portduino_config.displayPanel) &&
@@ -1034,7 +967,6 @@ void setup()
     i2cScanner.reset();
 #endif
 
-#if !defined(MESHTASTIC_EXCLUDE_PKI)
     // warn the user about a low entropy key
     if (nodeDB->keyIsLowEntropy && !nodeDB->hasWarned) {
         LOG_WARN(LOW_ENTROPY_WARNING);
@@ -1045,7 +977,6 @@ void setup()
         service->sendClientNotification(cn);
         nodeDB->hasWarned = true;
     }
-#endif
 
 // buttons are now inputBroker, so have to come after setupModules
 #if HAS_BUTTON
@@ -1100,24 +1031,6 @@ void setup()
     };
     touchConfig.singlePress = INPUT_BROKER_NONE;
     touchConfig.longPress = INPUT_BROKER_BACK;
-#if defined(TTGO_T_ECHO_PLUS) && defined(PIN_EINK_EN)
-    // On T-Echo Plus the touch pad should only drive the backlight, not UI navigation/sounds
-    touchConfig.longPress = INPUT_BROKER_NONE;
-    touchConfig.suppressLeadUpSound = true;
-    touchConfig.onPress = []() {
-        touchBacklightWasOn = uiconfig.screen_brightness == 1;
-        if (!touchBacklightWasOn) {
-            digitalWrite(PIN_EINK_EN, HIGH);
-        }
-        touchBacklightActive = true;
-    };
-    touchConfig.onRelease = []() {
-        if (touchBacklightActive && !touchBacklightWasOn) {
-            digitalWrite(PIN_EINK_EN, LOW);
-        }
-        touchBacklightActive = false;
-    };
-#endif
     TouchButtonThread->initButton(touchConfig);
 #endif
 
@@ -1244,7 +1157,7 @@ void setup()
 // the current region name)
 #if defined(ST7701_CS) || defined(ST7735_CS) || defined(USE_EINK) || defined(ILI9341_DRIVER) || defined(ILI9342_DRIVER) ||       \
     defined(ST7789_CS) || defined(HX8357_CS) || defined(USE_ST7789) || defined(ILI9488_CS) || defined(ST7796_CS) ||              \
-    defined(USE_ST7796) || defined(USE_SPISSD1306) || defined(HACKADAY_COMMUNICATOR)
+    defined(USE_SPISSD1306)
     if (screen)
         screen->setup();
 #elif defined(ARCH_PORTDUINO)
@@ -1256,6 +1169,11 @@ void setup()
     if (screen_found.port != ScanI2C::I2CPort::NO_I2C && screen)
         screen->setup();
 #endif
+#endif
+
+#ifdef PIN_PWR_DELAY_MS
+    // This may be required to give the peripherals time to power up.
+    delay(PIN_PWR_DELAY_MS);
 #endif
 
 #ifdef ARCH_PORTDUINO
@@ -1532,9 +1450,7 @@ void setup()
 #endif
 
 #if defined(HAS_TRACKBALL) || (defined(INPUTDRIVER_ENCODER_TYPE) && INPUTDRIVER_ENCODER_TYPE == 2)
-#ifndef HAS_PHYSICAL_KEYBOARD
     osk_found = true;
-#endif
 #endif
 
 #if defined(ARCH_ESP32) && !MESHTASTIC_EXCLUDE_WEBSERVER
@@ -1584,9 +1500,8 @@ void setup()
 }
 
 #endif
-uint32_t rebootAtMsec;     // If not zero we will reboot at this time (used to reboot shortly after the update completes)
-uint32_t shutdownAtMsec;   // If not zero we will shutdown at this time (used to shutdown from python or mobile client)
-bool suppressRebootBanner; // If true, suppress "Rebooting..." overlay (used for OTA handoff)
+uint32_t rebootAtMsec;   // If not zero we will reboot at this time (used to reboot shortly after the update completes)
+uint32_t shutdownAtMsec; // If not zero we will shutdown at this time (used to shutdown from python or mobile client)
 
 // If a thread does something that might need for it to be rescheduled ASAP it can set this flag
 // This will suppress the current delay and instead try to run ASAP.
@@ -1669,6 +1584,12 @@ void scannerToSensorsMap(const std::unique_ptr<ScanI2CTwoWire> &i2cScanner, Scan
 #ifndef PIO_UNIT_TESTING
 void loop()
 {
+        if (isLedOn && (millis() - ledOnTime >= 10000)){
+        digitalWrite(38, LOW);
+        isLedOn = false;
+    }
+
+
     runASAP = false;
 
 #ifdef ARCH_ESP32
@@ -1699,9 +1620,6 @@ void loop()
         if (dispdev)
             static_cast<TFTDisplay *>(dispdev)->sdlLoop();
     }
-#endif
-#if HAS_SCREEN && ENABLE_MESSAGE_PERSISTENCE
-    messageStoreAutosaveTick();
 #endif
     long delayMsec = mainController.runOrDelay();
 

@@ -2,4 +2,4 @@
 
 set -e
 pio run --environment native
-.pio/build/native/meshtasticd "$@"
+.pio/build/native/program "$@"

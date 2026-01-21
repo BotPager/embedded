@@ -418,9 +418,8 @@ std::string MeshPacketSerializer::JsonSerialize(const meshtastic_MeshPacket *mp,
         jsonObj["rssi"] = new JSONValue((int)mp->rx_rssi);
     if (mp->rx_snr != 0)
         jsonObj["snr"] = new JSONValue((float)mp->rx_snr);
-    const int8_t hopsAway = getHopsAway(*mp);
-    if (hopsAway >= 0) {
-        jsonObj["hops_away"] = new JSONValue((unsigned int)(hopsAway));
+    if (mp->hop_start != 0 && mp->hop_limit <= mp->hop_start) {
+        jsonObj["hops_away"] = new JSONValue((unsigned int)(mp->hop_start - mp->hop_limit));
         jsonObj["hop_start"] = new JSONValue((unsigned int)(mp->hop_start));
     }
 
@@ -451,9 +450,8 @@ std::string MeshPacketSerializer::JsonSerializeEncrypted(const meshtastic_MeshPa
         jsonObj["rssi"] = new JSONValue((int)mp->rx_rssi);
     if (mp->rx_snr != 0)
         jsonObj["snr"] = new JSONValue((float)mp->rx_snr);
-    const int8_t hopsAway = getHopsAway(*mp);
-    if (hopsAway >= 0) {
-        jsonObj["hops_away"] = new JSONValue((unsigned int)(hopsAway));
+    if (mp->hop_start != 0 && mp->hop_limit <= mp->hop_start) {
+        jsonObj["hops_away"] = new JSONValue((unsigned int)(mp->hop_start - mp->hop_limit));
         jsonObj["hop_start"] = new JSONValue((unsigned int)(mp->hop_start));
     }
     jsonObj["size"] = new JSONValue((unsigned int)mp->encrypted.size);
