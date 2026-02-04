@@ -74,13 +74,27 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
     // We only store/display messages destined for us.
     // Keep a copy of the most recent text message.
     devicestate.rx_text_message = mp;
+    
+    // Replace the payload with the parsed body so only the message (not the ID) is displayed.
+    std::string body = parsed.second;
+    size_t max_payload = sizeof(devicestate.rx_text_message.decoded.payload.bytes);
+    size_t copylen = (body.size() < (max_payload - 1)) ? body.size() : (max_payload - 1);
+
+    // copy the body and ensure null-termination (some renderers use "%s")
+    memcpy(devicestate.rx_text_message.decoded.payload.bytes, body.data(), copylen);
+    devicestate.rx_text_message.decoded.payload.bytes[copylen] = '\0';
+    devicestate.rx_text_message.decoded.payload.size = copylen;
+    
     devicestate.has_rx_text_message = true;
 
-
     // Turn on GPIO Pin
-    digitalWrite(38, HIGH);
+    digitalWrite(38, HIGH); // Turn on regulator
+    digitalWrite(39, HIGH); // Turn on Buzzer
     ledOnTime = millis();
     isLedOn = true;
+    // Flash the screen
+    screen->blink();
+
 
 
     // Only trigger screen wake if configuration allows it

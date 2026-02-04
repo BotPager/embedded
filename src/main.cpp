@@ -1586,6 +1586,7 @@ void loop()
 {
         if (isLedOn && (millis() - ledOnTime >= 10000)){
         digitalWrite(38, LOW);
+        digitalWrite(39, LOW);
         isLedOn = false;
     }
 
