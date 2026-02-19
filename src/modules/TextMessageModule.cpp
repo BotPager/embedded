@@ -19,11 +19,7 @@ static inline std::string trim_message(const std::string &s){
 
 // Helper function: return PAGER_ID if it's defined
 static std::string getLocalPagerID(){
-    #ifdef PAGER_ID
-        return std::to_string(PAGER_ID);
-    #else
-    return "";
-    #endif
+    return std::string(owner.short_name);
 }
 
 // ID Parser. Accepts messages of form "1234|Message"

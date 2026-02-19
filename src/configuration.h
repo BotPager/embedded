@@ -488,6 +488,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 // Custom Pager Stuff
-#define PAGER_ID 1234
+// #define PAGER_ID 4321
 extern unsigned long ledOnTime;
 extern bool isLedOn;
