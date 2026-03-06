@@ -5,6 +5,7 @@
 #include "buzz.h"
 #include "configuration.h"
 #include "graphics/Screen.h"
+#include "graphics/NeoPixel.h"
 TextMessageModule *textMessageModule;
 extern bool isLedOn;
 extern unsigned long ledOnTime;
@@ -84,8 +85,18 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
     devicestate.has_rx_text_message = true;
 
     // Turn on GPIO Pin
-    digitalWrite(38, HIGH); // Turn on regulator
-    digitalWrite(39, HIGH); // Turn on Buzzer
+    digitalWrite(41, HIGH); // Converter Enable
+    delay(2000); // Short delay to ensure the converter is ready before we enable the buzzer and LED
+    digitalWrite(42, HIGH); // Buzzer FET Enable
+    delay(2000);
+    digitalWrite(46, HIGH); // LED FET Enable
+    
+    // Set the Neopixel to blue
+    for (int i = 0; i < 20; i++){
+        pixels.setPixelColor(i, pixels.Color(0, 0, 255));  // Blue
+    }
+    pixels.show();
+
     ledOnTime = millis();
     isLedOn = true;
     // Flash the screen

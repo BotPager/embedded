@@ -77,3 +77,9 @@
 
 #define HAS_SDCARD // Have SPI interface SD card slot
 #define SDCARD_USE_SPI1
+
+// Neopixel stuff
+#define HAS_NEOPIXEL
+#define NEOPIXEL_DATA 45
+#define NEOPIXEL_COUNT 20
+#define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800)

@@ -170,7 +170,10 @@ unsigned long ledOnTime;
 
 
 
-volatile static const char slipstreamTZString[] = {USERPREFS_TZ_STRING};
+#ifndef USERPREFS_TZ_STRING
+#define USERPREFS_TZ_STRING "tzpl"
+#endif
+volatile static const char slipstreamTZString[] = USERPREFS_TZ_STRING;
 
 // We always create a screen object, but we only init it if we find the hardware
 graphics::Screen *screen = nullptr;
@@ -306,6 +309,15 @@ void setup()
 // Initialize Zero pin to low
     pinMode(38,OUTPUT);
     digitalWrite(38, LOW);
+
+    // Pager power control rails (converter, buzzer FET, LED FET)
+    // Start disabled so they don't float until first message event.
+    pinMode(41, OUTPUT);
+    pinMode(42, OUTPUT);
+    pinMode(46, OUTPUT);
+    digitalWrite(41, LOW);
+    digitalWrite(42, LOW);
+    digitalWrite(46, LOW);
 #if defined(R1_NEO)
     pinMode(DCDC_EN_HOLD, OUTPUT);
     digitalWrite(DCDC_EN_HOLD, HIGH);
@@ -313,9 +325,11 @@ void setup()
     digitalWrite(NRF_ON, HIGH);
 #endif
 
-#if defined(PIN_POWER_EN)
-    pinMode(PIN_POWER_EN, OUTPUT);
-    digitalWrite(PIN_POWER_EN, HIGH);
+#ifdef HAS_NEOPIXEL
+    // Set up the Neopixel
+    pixels.begin();
+    pixels.clear(); // Initialize all pixels to 'off'
+    pixels.setBrightness(NEOPIXEL_BRIGHTNESS);  // 0-255
 #endif
 
 #if defined(ELECROW_ThinkNode_M5)
@@ -537,6 +551,28 @@ void setup()
 #endif
 
     fsInit();
+
+// #ifdef ARCH_ESP32
+
+// // Set up the GPIO Pins
+//     for (int pin = 0; pin < 48; pin++){
+//         // Skip pins that are in use
+//         if (pin == 41 || pin == 42 || pin == 45 || pin == 46) {
+//             continue;
+//         }
+//         pinMode(pin, OUTPUT);
+//         digitalWrite(pin, LOW);
+//     }
+// #endif
+
+#ifdef ARCH_ESP32
+// Set pulldown resistors for pin 41, 42, 45, and 46, which are used for wakeup from deep sleep, to prevent floating inputs and unintended wakeups
+    gpio_pulldown_en(GPIO_NUM_41);
+    gpio_pulldown_en(GPIO_NUM_42);
+    gpio_pulldown_en(GPIO_NUM_45);
+    gpio_pulldown_en(GPIO_NUM_46);
+
+#endif
 
 #if !MESHTASTIC_EXCLUDE_I2C
 #if defined(I2C_SDA1) && defined(ARCH_RP2040)
@@ -1582,12 +1618,25 @@ void scannerToSensorsMap(const std::unique_ptr<ScanI2CTwoWire> &i2cScanner, Scan
 #endif
 
 #ifndef PIO_UNIT_TESTING
+
+
+
 void loop()
 {
-        if (isLedOn && (millis() - ledOnTime >= 10000)){
-        digitalWrite(38, LOW);
-        digitalWrite(39, LOW);
-        isLedOn = false;
+    if (isLedOn && (millis() - ledOnTime >= 4000)){
+        screen->blink();
+        delay(2000);
+        digitalWrite(41,LOW); // Converter Disable
+        delay(2000);
+        digitalWrite(42,LOW); // Buzzer FET Disable
+        digitalWrite(46,LOW); // LED FET Disable
+        pixels.clear();
+        pixels.show();
+
+    //for (int i = 0; i < 20; i++){
+    //    pixels.setPixelColor(i, pixels.Color(0, 0, 0));
+    //}
+    isLedOn = false;
     }
 
 
