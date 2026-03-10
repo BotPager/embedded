@@ -86,9 +86,7 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
 
     // Turn on GPIO Pin
     digitalWrite(41, HIGH); // Converter Enable
-    delay(2000); // Short delay to ensure the converter is ready before we enable the buzzer and LED
     digitalWrite(42, HIGH); // Buzzer FET Enable
-    delay(2000);
     digitalWrite(46, HIGH); // LED FET Enable
     
     // Set the Neopixel to blue

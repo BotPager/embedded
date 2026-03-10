@@ -174,12 +174,15 @@ void drawTextMessageFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
 {
     display->clear();
     display->setTextAlignment(TEXT_ALIGN_CENTER);
-    display->setFont(FONT_LARGE);  // Use largest font
+    display->setFont(FONT_MEDIUM);
     
     const char *msg = reinterpret_cast<const char *>(devicestate.rx_text_message.decoded.payload.bytes);
     
+    int padding = 4;
+    int maxWidth = display->getWidth() - padding;
+
     // Just draw the text, nothing else
-    display->drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, msg);
+    display->drawStringMaxWidth(SCREEN_WIDTH / 2, 0, maxWidth, msg);
 }
 
 std::vector<std::string> generateLines(OLEDDisplay *display, const char *headerStr, const char *messageBuf, int textWidth)

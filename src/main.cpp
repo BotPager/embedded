@@ -1623,11 +1623,9 @@ void scannerToSensorsMap(const std::unique_ptr<ScanI2CTwoWire> &i2cScanner, Scan
 
 void loop()
 {
-    if (isLedOn && (millis() - ledOnTime >= 4000)){
+    if (isLedOn && (millis() - ledOnTime >= 2000)){
         screen->blink();
-        delay(2000);
         digitalWrite(41,LOW); // Converter Disable
-        delay(2000);
         digitalWrite(42,LOW); // Buzzer FET Disable
         digitalWrite(46,LOW); // LED FET Disable
         pixels.clear();
