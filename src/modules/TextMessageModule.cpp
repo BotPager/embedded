@@ -89,9 +89,9 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
     digitalWrite(42, HIGH); // Buzzer FET Enable
     digitalWrite(46, HIGH); // LED FET Enable
     
-    // Set the Neopixel to blue
+    // Set the Neopixel to red
     for (int i = 0; i < 20; i++){
-        pixels.setPixelColor(i, pixels.Color(0, 0, 255));  // Blue
+        pixels.setPixelColor(i, pixels.Color(255, 0, 0));  // Red
     }
     pixels.show();
 
