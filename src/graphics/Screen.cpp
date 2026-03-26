@@ -816,7 +816,7 @@ int32_t Screen::runOnce()
         case Cmd::STOP_BOOT_SCREEN:
             EINK_ADD_FRAMEFLAG(dispdev, COSMETIC); // E-Ink: Explicitly use full-refresh for next frame
             if (NotificationRenderer::current_notification_type != notificationTypeEnum::text_input) {
-                setFrames();
+                setFrames(FOCUS_TEXTMESSAGE); // Senior design edited. Focus on the text message frame, which is the most likely to be relevant after an alert.
             }
             break;
         case Cmd::NOOP:
@@ -1142,7 +1142,7 @@ void Screen::setFrames(FrameFocus focus)
     // Focus on a specific frame, in the frame set we just created
     switch (focus) {
     case FOCUS_DEFAULT:
-        ui->switchToFrame(fsi.positions.deviceFocused);
+        ui->switchToFrame(fsi.positions.textMessage); // Default to text message frame, as it's the most likely to be relevant to the user
         break;
     case FOCUS_FAULT:
         ui->switchToFrame(fsi.positions.fault);
