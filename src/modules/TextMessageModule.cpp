@@ -23,29 +23,70 @@ static std::string getLocalPagerID(){
     return std::string(owner.short_name);
 }
 
+// Helper function: Parse hex string to uint32_t
+static uint32_t hexToUint32(const std::string &hex){
+    try {
+        return std::stoul(hex, nullptr, 16);
+    } catch (...) {
+        return 0;
+    }
+}
+
+// ID Parser. Accepts messages of form:
+// "1234|Message" (old format, LED will be red)
+// "1234|FF0000|Message" (new format with RGB color)
+struct ParsedMessage {
+    bool isValid;
+    std::string body;
+    uint32_t ledRgb;
+};
+
+
 // ID Parser. Accepts messages of form "1234|Message"
-static std::pair <bool, std::string> parseForPagerID(const uint8_t *bytes, size_t len, const std::string &localId){
+static ParsedMessage parseForPagerID(const uint8_t *bytes, size_t len, const std::string &localId){
     if (len == 0){
-        return {false, ""};
+        return {false, "", 0xFF0000}; // Default to red LED
     }
     if (localId.empty()){
-        return {false, ""};
+        return {false, "", 0xFF0000}; // Default to red LED
     }
 
     std::string msg(reinterpret_cast<const char*>(bytes), len);
-    size_t pos = msg.find("|");
+
+    // Find first pipe character to split off the prefix (ID) from the body
+    size_t firstPipe = msg.find("|");
     // If it can't find it return false
-    if (pos == std::string::npos){
-        return {false, ""};
+    if (firstPipe == std::string::npos){
+        return {false, "", 0xFF0000}; // Default to red LED
     }
 
-    std::string prefix = trim_message(msg.substr(0,pos));
-    std::string body = trim_message(msg.substr(pos+1));
+    std::string prefix = trim_message(msg.substr(0,firstPipe));
 
-    if (prefix == localId){
-        return{true,body};
+    if (prefix != localId){
+        return{false,"", 0xFF0000};
     }
-    return {false,""};
+
+    // Find second pipe character to split off optional RGB color
+    std::string remainder = msg.substr(firstPipe + 1);
+    size_t secondPipe = remainder.find("|");
+
+    uint32_t ledColor = 0xFF0000; // Default to red
+    std::string body;
+
+    if (secondPipe == std::string::npos){
+        body = trim_message(remainder);
+    } else {
+        std::string colorStr = trim_message(remainder.substr(0, secondPipe));
+        body = trim_message(remainder.substr(secondPipe + 1));
+
+        if (!colorStr.empty() && colorStr.size() <= 6){ // Basic validation for hex color
+            ledColor = hexToUint32(colorStr);
+            if (ledColor > 0xFFFFFF){ // Ensure it's a valid RGB value
+                ledColor = 0xFF0000; // Default to red if invalid
+            }
+        }
+    }
+    return {true,body, ledColor};
 }
 
 
@@ -64,7 +105,7 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
 
     auto parsed = parseForPagerID(payload.bytes,payload.size,localId);
 
-    if (!parsed.first){
+    if (!parsed.isValid){
         // Ignore message
         return ProcessMessage::CONTINUE;
     }
@@ -73,7 +114,7 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
     devicestate.rx_text_message = mp;
     
     // Replace the payload with the parsed body so only the message (not the ID) is displayed.
-    std::string body = parsed.second;
+    std::string body = parsed.body;
     size_t max_payload = sizeof(devicestate.rx_text_message.decoded.payload.bytes);
     size_t copylen = (body.size() < (max_payload - 1)) ? body.size() : (max_payload - 1);
 
@@ -88,10 +129,15 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
     digitalWrite(41, HIGH); // Converter Enable
     digitalWrite(42, HIGH); // Buzzer FET Enable
     digitalWrite(46, HIGH); // LED FET Enable
+
+    // Extract LED color from parsed message
+    uint8_t r = (parsed.ledRgb >> 16) & 0xFF;
+    uint8_t g = (parsed.ledRgb >> 8) & 0xFF;
+    uint8_t b = parsed.ledRgb & 0xFF;
     
-    // Set the Neopixel to red
+    // Set the Neopixel to the parsed color
     for (int i = 0; i < 20; i++){
-        pixels.setPixelColor(i, pixels.Color(255, 0, 0));  // Red
+        pixels.setPixelColor(i, pixels.Color(r, g, b));
     }
     pixels.show();
 
