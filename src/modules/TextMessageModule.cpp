@@ -6,6 +6,8 @@
 #include "configuration.h"
 #include "graphics/Screen.h"
 #include "graphics/NeoPixel.h"
+#include <cctype>
+#include <sstream>
 TextMessageModule *textMessageModule;
 extern bool isLedOn;
 extern unsigned long ledOnTime;
@@ -20,7 +22,11 @@ static inline std::string trim_message(const std::string &s){
 
 // Helper function: return PAGER_ID if it's defined
 static std::string getLocalPagerID(){
+#ifdef PAGER_ID
+    return std::to_string(PAGER_ID);
+#else
     return std::string(owner.short_name);
+#endif
 }
 
 // Helper function: Parse hex string to uint32_t
@@ -30,6 +36,47 @@ static uint32_t hexToUint32(const std::string &hex){
     } catch (...) {
         return 0;
     }
+}
+
+static bool isHexColor(const std::string &s){
+    if (s.size() != 6) {
+        return false;
+    }
+    for (char c : s) {
+        if (!std::isxdigit(static_cast<unsigned char>(c))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Support payloads that contain escaped newlines ("\\n") from JSON/automation tools.
+static std::string normalizeBlockDelimiters(const std::string &msg){
+    std::string out;
+    out.reserve(msg.size());
+
+    for (size_t i = 0; i < msg.size(); ++i) {
+        if (msg[i] == '\\' && (i + 1) < msg.size()) {
+            const char n = msg[i + 1];
+            if (n == 'n') {
+                out.push_back('\n');
+                ++i;
+                continue;
+            }
+            if (n == 'r') {
+                ++i;
+                if ((i + 1) < msg.size() && msg[i + 1] == '\\' && (i + 2) < msg.size() && msg[i + 2] == 'n') {
+                    ++i;
+                    ++i;
+                }
+                out.push_back('\n');
+                continue;
+            }
+        }
+        out.push_back(msg[i]);
+    }
+
+    return out;
 }
 
 // ID Parser. Accepts messages of form:
@@ -52,41 +99,56 @@ static ParsedMessage parseForPagerID(const uint8_t *bytes, size_t len, const std
     }
 
     std::string msg(reinterpret_cast<const char*>(bytes), len);
+    msg = normalizeBlockDelimiters(msg);
 
-    // Find first pipe character to split off the prefix (ID) from the body
-    size_t firstPipe = msg.find("|");
-    // If it can't find it return false
-    if (firstPipe == std::string::npos){
-        return {false, "", 0xFF0000}; // Default to red LED
-    }
+    // Split the message block by newlines
+    std::istringstream iss(msg);
+    std::string line;
 
-    std::string prefix = trim_message(msg.substr(0,firstPipe));
+    while (std::getline(iss, line)) {
+        line = trim_message(line);
+        if (line.empty()) continue;
 
-    if (prefix != localId){
-        return{false,"", 0xFF0000};
-    }
+        // Find first pipe character to split off the prefix (ID) from the body
+        size_t firstPipe = line.find('|');
+        if (firstPipe == std::string::npos) continue;
 
-    // Find second pipe character to split off optional RGB color
-    std::string remainder = msg.substr(firstPipe + 1);
-    size_t secondPipe = remainder.find("|");
+        std::string prefix = trim_message(line.substr(0,firstPipe));
 
-    uint32_t ledColor = 0xFF0000; // Default to red
-    std::string body;
+        // Check if this line is intended for this pager
+        if (prefix != localId) continue;
 
-    if (secondPipe == std::string::npos){
-        body = trim_message(remainder);
-    } else {
-        std::string colorStr = trim_message(remainder.substr(0, secondPipe));
-        body = trim_message(remainder.substr(secondPipe + 1));
+       // We found our ID! Now parse the color and message
+        std::string remainder = line.substr(firstPipe + 1);
+        size_t secondPipe = remainder.find('|');
 
-        if (!colorStr.empty() && colorStr.size() <= 6){ // Basic validation for hex color
-            ledColor = hexToUint32(colorStr);
-            if (ledColor > 0xFFFFFF){ // Ensure it's a valid RGB value
-                ledColor = 0xFF0000; // Default to red if invalid
+        uint32_t ledColor = 0xFF0000; // Default to red
+        std::string body;
+
+        if (secondPipe == std::string::npos){
+            // Old format: ID|Message (no color)
+            body = trim_message(remainder);
+        } else {
+            // New format: ID|RRGGBB|Message
+            std::string colorStr = trim_message(remainder.substr(0, secondPipe));
+            if (isHexColor(colorStr)){
+                ledColor = hexToUint32(colorStr);
+                if (ledColor > 0xFFFFFF){ // Ensure it's a valid RGB value
+                    ledColor = 0xFF0000; // Default to red if invalid
+                }
+                body = trim_message(remainder.substr(secondPipe + 1));
+            } else {
+                // Not a valid color token; treat everything after ID as body.
+                body = trim_message(remainder);
             }
         }
+
+        // Found our message and parsed it successfully
+        return {true, body, ledColor};
     }
-    return {true,body, ledColor};
+
+    // ID not found in the block
+    return {false, "", 0xFF0000};
 }
 
 
