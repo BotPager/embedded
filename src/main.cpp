@@ -167,6 +167,7 @@ using namespace concurrency;
 // LED Declares
 bool isLedOn;
 unsigned long ledOnTime;
+volatile bool alertSnoozeRequested = false;
 
 
 
@@ -1136,6 +1137,7 @@ void setup()
         userConfig.pullupSense = pullup_sense;
         userConfig.intRoutine = []() {
             UserButtonThread->userButton.tick();
+            alertSnoozeRequested = true;
             UserButtonThread->setIntervalFromNow(0);
             runASAP = true;
             BaseType_t higherWake = 0;
@@ -1154,6 +1156,7 @@ void setup()
         userConfigNoScreen.pullupSense = pullup_sense;
         userConfigNoScreen.intRoutine = []() {
             UserButtonThread->userButton.tick();
+            alertSnoozeRequested = true;
             UserButtonThread->setIntervalFromNow(0);
             runASAP = true;
             BaseType_t higherWake = 0;
@@ -1623,18 +1626,35 @@ void scannerToSensorsMap(const std::unique_ptr<ScanI2CTwoWire> &i2cScanner, Scan
 
 void loop()
 {
-    if (isLedOn && (millis() - ledOnTime >= 2000)){
-        screen->blink();
-        digitalWrite(41,LOW); // Converter Disable
-        digitalWrite(42,LOW); // Buzzer FET Disable
-        digitalWrite(46,LOW); // LED FET Disable
+    bool timeoutExpired = isLedOn && (millis() - ledOnTime >= 4000);
+    bool buttonSnoozed = false;
+#if defined(BUTTON_PIN)
+#if defined(USERPREFS_BUTTON_PIN)
+    const int userButtonPin = config.device.button_gpio ? config.device.button_gpio : USERPREFS_BUTTON_PIN;
+#else
+    const int userButtonPin = config.device.button_gpio ? config.device.button_gpio : BUTTON_PIN;
+#endif
+    buttonSnoozed = isLedOn &&
+                    ((UserButtonThread && UserButtonThread->isButtonPressed(userButtonPin)) || alertSnoozeRequested);
+#endif
+
+    if (timeoutExpired || buttonSnoozed) {
+        if (screen) {
+            screen->blink();
+        }
+        digitalWrite(41, LOW); // Converter Disable
+        digitalWrite(42, LOW); // Buzzer FET Disable
+        digitalWrite(46, LOW); // LED FET Disable
+#ifdef HAS_NEOPIXEL
         pixels.clear();
         pixels.show();
+#endif
 
     //for (int i = 0; i < 20; i++){
     //    pixels.setPixelColor(i, pixels.Color(0, 0, 0));
     //}
-    isLedOn = false;
+        isLedOn = false;
+        alertSnoozeRequested = false;
     }
 
 
