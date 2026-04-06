@@ -168,6 +168,7 @@ using namespace concurrency;
 bool isLedOn;
 unsigned long ledOnTime;
 volatile bool alertSnoozeRequested = false;
+volatile bool buttonPressedInISR = false;
 
 
 
@@ -1040,6 +1041,7 @@ void setup()
             config.pullupSense = INPUT_PULLUP;
             config.intRoutine = []() {
                 UserButtonThread->userButton.tick();
+                buttonPressedInISR = true;
                 UserButtonThread->setIntervalFromNow(0);
                 runASAP = true;
                 BaseType_t higherWake = 0;
@@ -1061,6 +1063,7 @@ void setup()
     touchConfig.pullupSense = pullup_sense;
     touchConfig.intRoutine = []() {
         TouchButtonThread->userButton.tick();
+        buttonPressedInISR = true;
         TouchButtonThread->setIntervalFromNow(0);
         runASAP = true;
         BaseType_t higherWake = 0;
@@ -1081,6 +1084,7 @@ void setup()
     cancelConfig.pullupSense = pullup_sense;
     cancelConfig.intRoutine = []() {
         CancelButtonThread->userButton.tick();
+        buttonPressedInISR = true;
         CancelButtonThread->setIntervalFromNow(0);
         runASAP = true;
         BaseType_t higherWake = 0;
@@ -1102,6 +1106,7 @@ void setup()
     backConfig.pullupSense = pullup_sense;
     backConfig.intRoutine = []() {
         BackButtonThread->userButton.tick();
+        buttonPressedInISR = true;
         BackButtonThread->setIntervalFromNow(0);
         runASAP = true;
         BaseType_t higherWake = 0;
@@ -1137,6 +1142,7 @@ void setup()
         userConfig.pullupSense = pullup_sense;
         userConfig.intRoutine = []() {
             UserButtonThread->userButton.tick();
+            buttonPressedInISR = true;
             alertSnoozeRequested = true;
             UserButtonThread->setIntervalFromNow(0);
             runASAP = true;
@@ -1156,6 +1162,7 @@ void setup()
         userConfigNoScreen.pullupSense = pullup_sense;
         userConfigNoScreen.intRoutine = []() {
             UserButtonThread->userButton.tick();
+            buttonPressedInISR = true;
             alertSnoozeRequested = true;
             UserButtonThread->setIntervalFromNow(0);
             runASAP = true;
@@ -1634,11 +1641,10 @@ void loop()
 #else
     const int userButtonPin = config.device.button_gpio ? config.device.button_gpio : BUTTON_PIN;
 #endif
-    buttonSnoozed = isLedOn &&
-                    ((UserButtonThread && UserButtonThread->isButtonPressed(userButtonPin)) || alertSnoozeRequested);
+    buttonSnoozed = isLedOn && alertSnoozeRequested;
 #endif
 
-    if (timeoutExpired || buttonSnoozed) {
+    if (buttonPressedInISR) {
         if (screen) {
             screen->blink();
         }
@@ -1655,7 +1661,9 @@ void loop()
     //}
         isLedOn = false;
         alertSnoozeRequested = false;
+        buttonPressedInISR = false;
     }
+    else buttonPressedInISR = false;
 
 
     runASAP = false;
