@@ -167,7 +167,6 @@ using namespace concurrency;
 // LED Declares
 bool isLedOn;
 unsigned long ledOnTime;
-volatile bool alertSnoozeRequested = false;
 volatile bool buttonPressedInISR = false;
 
 
@@ -1143,7 +1142,6 @@ void setup()
         userConfig.intRoutine = []() {
             UserButtonThread->userButton.tick();
             buttonPressedInISR = true;
-            alertSnoozeRequested = true;
             UserButtonThread->setIntervalFromNow(0);
             runASAP = true;
             BaseType_t higherWake = 0;
@@ -1163,7 +1161,6 @@ void setup()
         userConfigNoScreen.intRoutine = []() {
             UserButtonThread->userButton.tick();
             buttonPressedInISR = true;
-            alertSnoozeRequested = true;
             UserButtonThread->setIntervalFromNow(0);
             runASAP = true;
             BaseType_t higherWake = 0;
@@ -1633,21 +1630,16 @@ void scannerToSensorsMap(const std::unique_ptr<ScanI2CTwoWire> &i2cScanner, Scan
 
 void loop()
 {
-    bool timeoutExpired = isLedOn && (millis() - ledOnTime >= 4000);
-    bool buttonSnoozed = false;
+    bool timeoutExpired = isLedOn && (millis() - ledOnTime >= 20000);
 #if defined(BUTTON_PIN)
 #if defined(USERPREFS_BUTTON_PIN)
     const int userButtonPin = config.device.button_gpio ? config.device.button_gpio : USERPREFS_BUTTON_PIN;
 #else
     const int userButtonPin = config.device.button_gpio ? config.device.button_gpio : BUTTON_PIN;
 #endif
-    buttonSnoozed = isLedOn && alertSnoozeRequested;
 #endif
 
-    if (buttonPressedInISR) {
-        if (screen) {
-            screen->blink();
-        }
+    if ((buttonPressedInISR && isLedOn) || timeoutExpired) {
         digitalWrite(41, LOW); // Converter Disable
         digitalWrite(42, LOW); // Buzzer FET Disable
         digitalWrite(46, LOW); // LED FET Disable
@@ -1655,13 +1647,13 @@ void loop()
         pixels.clear();
         pixels.show();
 #endif
-
-    //for (int i = 0; i < 20; i++){
-    //    pixels.setPixelColor(i, pixels.Color(0, 0, 0));
-    //}
         isLedOn = false;
-        alertSnoozeRequested = false;
         buttonPressedInISR = false;
+
+        // Blink Screen
+        if (screen) {
+            screen->blink();
+        }
     }
     else buttonPressedInISR = false;
 
