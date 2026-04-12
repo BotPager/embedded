@@ -57,8 +57,8 @@ void InkHUD::Events::onButtonShort()
     // If no system applet is handling input, default behavior instead is to cycle applets
     if (consumer)
         consumer->onButtonShortPress();
-    else if (!dismissedExt) // Don't change applet if this button press silenced the external notification module
-        inkhud->nextApplet();
+    // else if (!dismissedExt) // Don't change applet if this button press silenced the external notification module
+    //     inkhud->nextApplet();
 }
 
 void InkHUD::Events::onButtonLong()
@@ -79,8 +79,8 @@ void InkHUD::Events::onButtonLong()
     // If no system applet is handling input, default behavior instead is to open the menu
     if (consumer)
         consumer->onButtonLongPress();
-    else
-        inkhud->openMenu();
+    // else
+    //     inkhud->openMenu();
 }
 
 // Callback for deepSleepObserver

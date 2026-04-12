@@ -1593,9 +1593,9 @@ int Screen::handleInputEvent(const InputEvent *event)
         // If no modules are using the input, move between frames
         if (!inputIntercepted) {
             if (event->inputEvent == INPUT_BROKER_LEFT || event->inputEvent == INPUT_BROKER_ALT_PRESS) {
-                showPrevFrame();
+                //showPrevFrame(); Menu Switching Disabled
             } else if (event->inputEvent == INPUT_BROKER_RIGHT || event->inputEvent == INPUT_BROKER_USER_PRESS) {
-                showNextFrame();
+                //showNextFrame(); Menu Switching Disabled
             } else if (event->inputEvent == INPUT_BROKER_SELECT) {
                 if (this->ui->getUiState()->currentFrame == framesetInfo.positions.home) {
                     menuHandler::homeBaseMenu();
