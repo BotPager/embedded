@@ -10,6 +10,14 @@ namespace graphics
 namespace MessageRenderer
 {
 
+// State for battery overlay
+static uint32_t batteryOverlayUntil = 0;
+static const uint32_t BATTERY_DISPLAY_DURATION = 2000; // 2 seconds
+
+void showBatteryOverlay();
+
+bool isBatteryOverlayActive();
+
 // Text and emote rendering
 void drawStringWithEmotes(OLEDDisplay *display, int x, int y, const std::string &line, const Emote *emotes, int emoteCount);
 

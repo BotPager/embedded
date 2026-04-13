@@ -173,6 +173,29 @@ void drawStringWithEmotes(OLEDDisplay *display, int x, int y, const std::string 
 void drawTextMessageFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
     display->clear();
+
+
+        // === Check if battery overlay is active ===
+    if (MessageRenderer::isBatteryOverlayActive()) {
+        // Display battery info instead of message
+        display->setTextAlignment(TEXT_ALIGN_CENTER);
+        display->setFont(FONT_MEDIUM);
+        int maxWidth = display->getWidth() - 4;
+        char batStr[50];
+        if (powerStatus->getHasBattery()) {
+            int percent = powerStatus->getBatteryChargePercent();
+            snprintf(batStr, sizeof(batStr), "Battery %d%%\n", percent);
+            // Also add owner short name below percentage if we know it, to help identify which device is which when testing
+            // snprintf(batStr + strlen(batStr), sizeof(batStr) - strlen(batStr), "%s", std::string(owner.short_name).c_str());
+        } else {
+            snprintf(batStr, sizeof(batStr), "USB\nPowered");
+        }
+        
+        display->drawStringMaxWidth(SCREEN_WIDTH / 2, 0, maxWidth, batStr);
+        
+        return; // Don't show message
+    }
+
     display->setTextAlignment(TEXT_ALIGN_CENTER);
     display->setFont(FONT_MEDIUM);
     
@@ -283,6 +306,15 @@ void renderMessageContent(OLEDDisplay *display, const std::vector<std::string> &
             }
         }
     }
+}
+
+// Battery Display Functions
+bool isBatteryOverlayActive() {
+    return millis() < batteryOverlayUntil;
+}
+
+void showBatteryOverlay() {
+    batteryOverlayUntil = millis() + BATTERY_DISPLAY_DURATION;
 }
 
 } // namespace MessageRenderer
