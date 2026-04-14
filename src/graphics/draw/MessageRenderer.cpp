@@ -184,11 +184,9 @@ void drawTextMessageFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
         char batStr[50];
         if (powerStatus->getHasBattery()) {
             int percent = powerStatus->getBatteryChargePercent();
-            snprintf(batStr, sizeof(batStr), "Battery %d%%\n", percent);
-            // Also add owner short name below percentage if we know it, to help identify which device is which when testing
-            // snprintf(batStr + strlen(batStr), sizeof(batStr) - strlen(batStr), "%s", std::string(owner.short_name).c_str());
+            snprintf(batStr, sizeof(batStr), "  Battery %d%%  PID %s", percent, std::string(owner.short_name).c_str());
         } else {
-            snprintf(batStr, sizeof(batStr), "USB\nPowered");
+            snprintf(batStr, sizeof(batStr), "USB Powered");
         }
         
         display->drawStringMaxWidth(SCREEN_WIDTH / 2, 0, maxWidth, batStr);
