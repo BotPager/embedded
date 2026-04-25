@@ -1630,7 +1630,7 @@ void scannerToSensorsMap(const std::unique_ptr<ScanI2CTwoWire> &i2cScanner, Scan
 
 void loop()
 {
-    bool timeoutExpired = isLedOn && (millis() - ledOnTime >= 20000);
+    bool timeoutExpired = isLedOn && (millis() - ledOnTime >= NOTIFICATION_TIMEOUT_MS);
 #if defined(BUTTON_PIN)
 #if defined(USERPREFS_BUTTON_PIN)
     const int userButtonPin = config.device.button_gpio ? config.device.button_gpio : USERPREFS_BUTTON_PIN;
@@ -1638,7 +1638,7 @@ void loop()
     const int userButtonPin = config.device.button_gpio ? config.device.button_gpio : BUTTON_PIN;
 #endif
 #endif
-
+    // If the button was pressed in the ISR and the LED is on, or if the timeout has expired, turn everything off
     if ((buttonPressedInISR && isLedOn) || timeoutExpired) {
         digitalWrite(41, LOW); // Converter Disable
         digitalWrite(42, LOW); // Buzzer FET Disable

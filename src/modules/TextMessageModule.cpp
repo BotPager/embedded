@@ -38,6 +38,7 @@ static uint32_t hexToUint32(const std::string &hex){
     }
 }
 
+// Check if a string is a valid 6-character hex color code (e.g. "FF0000" for red)
 static bool isHexColor(const std::string &s){
     if (s.size() != 6) {
         return false;
@@ -50,7 +51,7 @@ static bool isHexColor(const std::string &s){
     return true;
 }
 
-// Support payloads that contain escaped newlines ("\\n") from JSON/automation tools.
+// Support payloads that contain escaped newlines ("\\n") from JSON/automation tools. Newlines separate each line of the message.
 static std::string normalizeBlockDelimiters(const std::string &msg){
     std::string out;
     out.reserve(msg.size());
@@ -187,28 +188,8 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
     
     devicestate.has_rx_text_message = true;
 
-    // Turn on GPIO Pin
-    digitalWrite(41, HIGH); // Converter Enable
-    digitalWrite(42, HIGH); // Buzzer FET Enable
-    digitalWrite(46, HIGH); // LED FET Enable
-
-    // Extract LED color from parsed message
-    uint8_t r = (parsed.ledRgb >> 16) & 0xFF;
-    uint8_t g = (parsed.ledRgb >> 8) & 0xFF;
-    uint8_t b = parsed.ledRgb & 0xFF;
-    
-    // Set the Neopixel to the parsed color
-    for (int i = 0; i < 20; i++){
-        pixels.setPixelColor(i, pixels.Color(r, g, b));
-    }
-    pixels.show();
-
-    ledOnTime = millis();
-    isLedOn = true;
-    // Flash the screen
-    screen->blink();
-
-
+    // Activate hardware response (LED and peripheral power)
+    activateHardwareResponse(parsed.ledRgb);
 
     // Only trigger screen wake if configuration allows it
     if (shouldWakeOnReceivedMessage()) {
@@ -222,4 +203,36 @@ ProcessMessage TextMessageModule::handleReceived(const meshtastic_MeshPacket &mp
 bool TextMessageModule::wantPacket(const meshtastic_MeshPacket *p)
 {
     return MeshService::isTextPayload(p);
+}
+
+void activateHardwareResponse(uint32_t ledRgb)
+{
+    // Enable power for peripherals
+    enablePeripheralPower();
+    
+    // Set LED color
+    setNeoPixelColor(ledRgb);
+    
+    // Track LED state
+    ledOnTime = millis();
+    isLedOn = true;
+}
+
+void enablePeripheralPower()
+{
+    digitalWrite(41, HIGH); // Converter Enable
+    digitalWrite(42, HIGH); // Buzzer FET Enable
+    digitalWrite(46, HIGH); // LED FET Enable
+}
+
+void setNeoPixelColor(uint32_t rgbColor)
+{
+    uint8_t r = (rgbColor >> 16) & 0xFF;
+    uint8_t g = (rgbColor >> 8) & 0xFF;
+    uint8_t b = rgbColor & 0xFF;
+    
+    for (int i = 0; i < 20; i++) {
+        pixels.setPixelColor(i, pixels.Color(r, g, b));
+    }
+    pixels.show();
 }

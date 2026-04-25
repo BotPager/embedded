@@ -491,3 +491,4 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // #define PAGER_ID 4321
 extern unsigned long ledOnTime;
 extern bool isLedOn;
+#define NOTIFICATION_TIMEOUT_MS 20000
